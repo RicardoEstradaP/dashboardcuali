@@ -2,8 +2,10 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from wordcloud import WordCloud
+from wordcloud import WordCloud, STOPWORDS
 from datetime import datetime
+import re
+from collections import Counter
 
 # ---------------- CONFIGURACIÓN GENERAL ----------------
 st.set_page_config(
@@ -13,7 +15,7 @@ st.set_page_config(
 )
 
 st.title("🤖 Dashboard de Análisis Categórico: Ética y uso de la IA en Psicología")
-st.markdown("Analiza los aprendizajes y percepciones de tus estudiantes, organizados por categorías temáticas.")
+st.markdown("Explora aprendizajes y percepciones de los estudiantes sobre el uso ético de la inteligencia artificial.")
 
 # ---------------- CARGA DE DATOS ----------------
 st.sidebar.header("📂 Cargar base de datos")
@@ -64,10 +66,10 @@ if uploaded_file is not None:
     df["Categorías_P1"] = df[columnas[3]].apply(categorizar_texto)
     df["Categorías_P2"] = df[columnas[4]].apply(categorizar_texto)
 
+    # ---------------- SIDEBAR ----------------
     st.sidebar.markdown(f"**Total de respuestas:** {df.shape[0]}")
     st.sidebar.markdown(f"**Duración promedio:** {df['Tiempo de respuesta (min)'].mean():.2f} min")
 
-    # ---------------- SELECCIÓN DE ESTUDIANTE ----------------
     st.sidebar.header("🎓 Selecciona un estudiante")
     estudiante = st.sidebar.selectbox("Estudiante:", df[columnas[2]].unique())
 
@@ -91,7 +93,6 @@ if uploaded_file is not None:
     # ---------------- FRECUENCIA DE CATEGORÍAS ----------------
     st.header("📊 Frecuencia de categorías por pregunta")
 
-    # Contar frecuencia global
     freq_p1 = pd.Series([c for sublist in df["Categorías_P1"] for c in sublist]).value_counts()
     freq_p2 = pd.Series([c for sublist in df["Categorías_P2"] for c in sublist]).value_counts()
 
@@ -113,20 +114,67 @@ if uploaded_file is not None:
         st.pyplot(fig2)
 
     # ---------------- NUBES DE PALABRAS ----------------
-    st.header("💬 Nubes de palabras por pregunta (general)")
+    st.header("💬 Nubes de palabras por pregunta (filtradas en español)")
+
+    # Stopwords en español personalizadas
+    stopwords_es = set(STOPWORDS)
+    stopwords_extra = {
+        "que","de","la","el","en","y","a","los","las","del","se","por","con","una","un",
+        "para","como","su","al","es","lo","más","ha","sus","o","le","ya","sin","sí",
+        "esto","esa","ese","son","muy","me","mi","si","no","hay","fue","puede","ser","he","han","está"
+    }
+    stopwords_es.update(stopwords_extra)
+
+    def limpiar_texto(texto):
+        texto = re.sub(r"http\S+|www\S+", "", texto)
+        texto = re.sub(r"[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]", "", texto)
+        return texto.lower()
+
+    texto_p1 = " ".join(df[columnas[3]].astype(str).map(limpiar_texto))
+    texto_p2 = " ".join(df[columnas[4]].astype(str).map(limpiar_texto))
+
     colN1, colN2 = st.columns(2)
     with colN1:
-        wc1 = WordCloud(width=800, height=400, background_color="white").generate(" ".join(df[columnas[3]].astype(str)))
+        st.subheader("🧠 Aprendizajes")
+        wc1 = WordCloud(
+            width=800, height=400, background_color="white",
+            stopwords=stopwords_es, colormap="Blues"
+        ).generate(texto_p1)
         figN1, axN1 = plt.subplots()
         axN1.imshow(wc1, interpolation="bilinear")
         axN1.axis("off")
         st.pyplot(figN1)
+
     with colN2:
-        wc2 = WordCloud(width=800, height=400, background_color="white", colormap="Reds").generate(" ".join(df[columnas[4]].astype(str)))
+        st.subheader("🚫 Usos poco éticos")
+        wc2 = WordCloud(
+            width=800, height=400, background_color="white",
+            stopwords=stopwords_es, colormap="Reds"
+        ).generate(texto_p2)
         figN2, axN2 = plt.subplots()
         axN2.imshow(wc2, interpolation="bilinear")
         axN2.axis("off")
         st.pyplot(figN2)
+
+    # ---------------- TOP 20 PALABRAS ----------------
+    st.header("📈 Palabras más frecuentes (sin stopwords)")
+
+    def contar_palabras(texto):
+        palabras = [p for p in texto.split() if p not in stopwords_es and len(p) > 2]
+        return Counter(palabras)
+
+    freq_p1_words = contar_palabras(texto_p1)
+    freq_p2_words = contar_palabras(texto_p2)
+
+    colW1, colW2 = st.columns(2)
+    with colW1:
+        st.subheader("🧠 Aprendizajes (Top 20)")
+        top_p1 = pd.DataFrame(freq_p1_words.most_common(20), columns=["Palabra", "Frecuencia"])
+        st.dataframe(top_p1, use_container_width=True)
+    with colW2:
+        st.subheader("🚫 Usos poco éticos (Top 20)")
+        top_p2 = pd.DataFrame(freq_p2_words.most_common(20), columns=["Palabra", "Frecuencia"])
+        st.dataframe(top_p2, use_container_width=True)
 
     # ---------------- DESCARGA ----------------
     with st.expander("📋 Ver base de datos con categorías"):
@@ -139,7 +187,7 @@ if uploaded_file is not None:
         )
 
     st.markdown("---")
-    st.caption("Dashboard desarrollado con Streamlit • Análisis categórico de percepciones sobre la IA • © 2025")
+    st.caption("Dashboard desarrollado con Streamlit • Análisis categórico y léxico de percepciones sobre la IA • © 2025")
 
 else:
     st.info("📤 Sube un archivo CSV o XLSX con tus respuestas para comenzar.")
