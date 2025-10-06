@@ -71,30 +71,39 @@ if uploaded_file is not None:
     st.sidebar.markdown(f"**Duración promedio:** {df['Tiempo de respuesta (min)'].mean():.2f} min")
 
     st.sidebar.header("🎓 Selecciona un estudiante")
-    estudiante = st.sidebar.selectbox("Estudiante:", df[columnas[2]].unique())
+    estudiantes = ["Todos los estudiantes"] + list(df[columnas[2]].unique())
+    estudiante = st.sidebar.selectbox("Estudiante:", estudiantes)
 
-    datos = df[df[columnas[2]] == estudiante].iloc[0]
+    # Filtrado
+    if estudiante == "Todos los estudiantes":
+        df_filtrado = df.copy()
+    else:
+        df_filtrado = df[df[columnas[2]] == estudiante]
 
     # ---------------- PANEL INDIVIDUAL ----------------
-    st.header(f"🧩 Respuestas de {estudiante}")
+    if estudiante != "Todos los estudiantes":
+        datos = df_filtrado.iloc[0]
+        st.header(f"🧩 Respuestas de {estudiante}")
 
-    col1, col2, col3 = st.columns([1, 2, 2])
-    with col1:
-        st.metric("⏱️ Tiempo de respuesta (min)", f"{datos['Tiempo de respuesta (min)']:.2f}")
-    with col2:
-        st.subheader("💭 Aprendizajes de la materia")
-        st.write(datos[columnas[3]])
-        st.markdown(f"**Categorías detectadas:** {', '.join(datos['Categorías_P1'])}")
-    with col3:
-        st.subheader("⚠️ Uso poco ético observado")
-        st.write(datos[columnas[4]])
-        st.markdown(f"**Categorías detectadas:** {', '.join(datos['Categorías_P2'])}")
+        col1, col2, col3 = st.columns([1, 2, 2])
+        with col1:
+            st.metric("⏱️ Tiempo de respuesta (min)", f"{datos['Tiempo de respuesta (min)']:.2f}")
+        with col2:
+            st.subheader("💭 Aprendizajes de la materia")
+            st.write(datos[columnas[3]])
+            st.markdown(f"**Categorías detectadas:** {', '.join(datos['Categorías_P1'])}")
+        with col3:
+            st.subheader("⚠️ Uso poco ético observado")
+            st.write(datos[columnas[4]])
+            st.markdown(f"**Categorías detectadas:** {', '.join(datos['Categorías_P2'])}")
+    else:
+        st.header("📊 Resultados globales de todos los estudiantes")
 
     # ---------------- FRECUENCIA DE CATEGORÍAS ----------------
     st.header("📊 Frecuencia de categorías por pregunta")
 
-    freq_p1 = pd.Series([c for sublist in df["Categorías_P1"] for c in sublist]).value_counts()
-    freq_p2 = pd.Series([c for sublist in df["Categorías_P2"] for c in sublist]).value_counts()
+    freq_p1 = pd.Series([c for sublist in df_filtrado["Categorías_P1"] for c in sublist]).value_counts()
+    freq_p2 = pd.Series([c for sublist in df_filtrado["Categorías_P2"] for c in sublist]).value_counts()
 
     colG1, colG2 = st.columns(2)
     with colG1:
@@ -116,7 +125,7 @@ if uploaded_file is not None:
     # ---------------- NUBES DE PALABRAS ----------------
     st.header("💬 Nubes de palabras por pregunta (filtradas en español)")
 
-    # Stopwords en español personalizadas
+    # Stopwords en español
     stopwords_es = set(STOPWORDS)
     stopwords_extra = {
         "que","de","la","el","en","y","a","los","las","del","se","por","con","una","un",
@@ -130,8 +139,8 @@ if uploaded_file is not None:
         texto = re.sub(r"[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]", "", texto)
         return texto.lower()
 
-    texto_p1 = " ".join(df[columnas[3]].astype(str).map(limpiar_texto))
-    texto_p2 = " ".join(df[columnas[4]].astype(str).map(limpiar_texto))
+    texto_p1 = " ".join(df_filtrado[columnas[3]].astype(str).map(limpiar_texto))
+    texto_p2 = " ".join(df_filtrado[columnas[4]].astype(str).map(limpiar_texto))
 
     colN1, colN2 = st.columns(2)
     with colN1:
@@ -178,16 +187,16 @@ if uploaded_file is not None:
 
     # ---------------- DESCARGA ----------------
     with st.expander("📋 Ver base de datos con categorías"):
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df_filtrado, use_container_width=True)
         st.download_button(
-            "⬇️ Descargar base enriquecida con categorías",
-            data=df.to_csv(index=False).encode("utf-8"),
-            file_name="respuestas_categorizadas.csv",
+            "⬇️ Descargar base enriquecida (filtrada)",
+            data=df_filtrado.to_csv(index=False).encode("utf-8"),
+            file_name="respuestas_filtradas.csv",
             mime="text/csv"
         )
 
     st.markdown("---")
-    st.caption("Dashboard desarrollado con Streamlit • Análisis categórico y léxico de percepciones sobre la IA • © 2025")
+    st.caption("Dashboard desarrollado con Streamlit • Frecuencias dinámicas por estudiante o globales • © 2025")
 
 else:
     st.info("📤 Sube un archivo CSV o XLSX con tus respuestas para comenzar.")
