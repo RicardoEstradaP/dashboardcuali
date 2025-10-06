@@ -1,11 +1,9 @@
 # app.py
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from wordcloud import WordCloud, STOPWORDS
 from datetime import datetime
 import re
-from collections import Counter
+from wordcloud import WordCloud, STOPWORDS
 
 # ---------------- CONFIGURACIÓN GENERAL ----------------
 st.set_page_config(
@@ -15,7 +13,7 @@ st.set_page_config(
 )
 
 st.title("🤖 Dashboard de Análisis Categórico: Ética y uso de la IA en Psicología")
-st.markdown("Explora aprendizajes y percepciones de los estudiantes sobre el uso ético de la inteligencia artificial.")
+st.markdown("Visualiza respuestas categorizadas y sus extractos temáticos de forma interactiva.")
 
 # ---------------- CARGA DE DATOS ----------------
 st.sidebar.header("📂 Cargar base de datos")
@@ -44,7 +42,6 @@ def categorizar_texto(texto):
 
 # ---------------- PROCESAMIENTO ----------------
 if uploaded_file is not None:
-    # Leer CSV o Excel
     if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
     else:
@@ -99,33 +96,33 @@ if uploaded_file is not None:
     else:
         st.header("📊 Resultados globales de todos los estudiantes")
 
-    # ---------------- FRECUENCIA DE CATEGORÍAS ----------------
-    st.header("📊 Frecuencia de categorías por pregunta")
+    # ---------------- EXTRACTOS POR CATEGORÍA ----------------
+    st.header("🧠 Extractos por categoría")
 
-    freq_p1 = pd.Series([c for sublist in df_filtrado["Categorías_P1"] for c in sublist]).value_counts()
-    freq_p2 = pd.Series([c for sublist in df_filtrado["Categorías_P2"] for c in sublist]).value_counts()
+    # Reunir extractos categorizados
+    resultados = {}
+    for cat in categorias.keys():
+        textos = []
+        for _, row in df_filtrado.iterrows():
+            # Combinar respuestas de ambas preguntas
+            for col, campo in zip(["Categorías_P1", "Categorías_P2"], [columnas[3], columnas[4]]):
+                if cat in row[col]:
+                    texto = row[campo].strip()
+                    textos.append(f"**{row[columnas[2]]}:** {texto}")
+        if textos:
+            resultados[cat] = textos
 
-    colG1, colG2 = st.columns(2)
-    with colG1:
-        st.subheader("🧠 Aprendizajes (Pregunta 1)")
-        fig1, ax1 = plt.subplots()
-        ax1.barh(freq_p1.index, freq_p1.values, color="#2563eb")
-        ax1.set_xlabel("Frecuencia")
-        ax1.set_ylabel("Categoría")
-        st.pyplot(fig1)
+    if not resultados:
+        st.warning("No se detectaron categorías en las respuestas filtradas.")
+    else:
+        for cat, ejemplos in resultados.items():
+            with st.expander(f"📂 {cat}  ({len(ejemplos)} coincidencias)"):
+                for t in ejemplos:
+                    st.markdown(f"- {t}")
 
-    with colG2:
-        st.subheader("🚫 Usos poco éticos (Pregunta 2)")
-        fig2, ax2 = plt.subplots()
-        ax2.barh(freq_p2.index, freq_p2.values, color="#dc2626")
-        ax2.set_xlabel("Frecuencia")
-        ax2.set_ylabel("Categoría")
-        st.pyplot(fig2)
+    # ---------------- NUBE DE PALABRAS ----------------
+    st.header("💬 Nubes de palabras por pregunta (limpias en español)")
 
-    # ---------------- NUBES DE PALABRAS ----------------
-    st.header("💬 Nubes de palabras por pregunta (filtradas en español)")
-
-    # Stopwords en español
     stopwords_es = set(STOPWORDS)
     stopwords_extra = {
         "que","de","la","el","en","y","a","los","las","del","se","por","con","una","un",
@@ -145,45 +142,15 @@ if uploaded_file is not None:
     colN1, colN2 = st.columns(2)
     with colN1:
         st.subheader("🧠 Aprendizajes")
-        wc1 = WordCloud(
-            width=800, height=400, background_color="white",
-            stopwords=stopwords_es, colormap="Blues"
-        ).generate(texto_p1)
-        figN1, axN1 = plt.subplots()
-        axN1.imshow(wc1, interpolation="bilinear")
-        axN1.axis("off")
-        st.pyplot(figN1)
+        wc1 = WordCloud(width=800, height=400, background_color="white",
+                        stopwords=stopwords_es, colormap="Blues").generate(texto_p1)
+        st.image(wc1.to_array(), use_container_width=True)
 
     with colN2:
         st.subheader("🚫 Usos poco éticos")
-        wc2 = WordCloud(
-            width=800, height=400, background_color="white",
-            stopwords=stopwords_es, colormap="Reds"
-        ).generate(texto_p2)
-        figN2, axN2 = plt.subplots()
-        axN2.imshow(wc2, interpolation="bilinear")
-        axN2.axis("off")
-        st.pyplot(figN2)
-
-    # ---------------- TOP 20 PALABRAS ----------------
-    st.header("📈 Palabras más frecuentes (sin stopwords)")
-
-    def contar_palabras(texto):
-        palabras = [p for p in texto.split() if p not in stopwords_es and len(p) > 2]
-        return Counter(palabras)
-
-    freq_p1_words = contar_palabras(texto_p1)
-    freq_p2_words = contar_palabras(texto_p2)
-
-    colW1, colW2 = st.columns(2)
-    with colW1:
-        st.subheader("🧠 Aprendizajes (Top 20)")
-        top_p1 = pd.DataFrame(freq_p1_words.most_common(20), columns=["Palabra", "Frecuencia"])
-        st.dataframe(top_p1, use_container_width=True)
-    with colW2:
-        st.subheader("🚫 Usos poco éticos (Top 20)")
-        top_p2 = pd.DataFrame(freq_p2_words.most_common(20), columns=["Palabra", "Frecuencia"])
-        st.dataframe(top_p2, use_container_width=True)
+        wc2 = WordCloud(width=800, height=400, background_color="white",
+                        stopwords=stopwords_es, colormap="Reds").generate(texto_p2)
+        st.image(wc2.to_array(), use_container_width=True)
 
     # ---------------- DESCARGA ----------------
     with st.expander("📋 Ver base de datos con categorías"):
@@ -196,7 +163,7 @@ if uploaded_file is not None:
         )
 
     st.markdown("---")
-    st.caption("Dashboard desarrollado con Streamlit • Frecuencias dinámicas por estudiante o globales • © 2025")
+    st.caption("Dashboard desarrollado con Streamlit • Extractos temáticos categorizados • © 2025")
 
 else:
     st.info("📤 Sube un archivo CSV o XLSX con tus respuestas para comenzar.")
