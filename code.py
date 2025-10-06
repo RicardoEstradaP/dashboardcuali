@@ -32,27 +32,30 @@ default_categories = pd.DataFrame({
         "Pensamiento crítico",
         "Uso inapropiado o plagio",
         "Aprendizaje y descubrimiento",
-        "Dependencia o abuso"
-    ],
-    "Palabras_clave": [
-        "ética, responsable, honesto, crítico, citar",
-        "herramienta, usar, aplicación, tecnología, ia, chatgpt",
-        "analizar, reflexión, verificar, revisar, cuestionar, fuentes",
-        "copiar, pegar, plagio, sin revisar, hacer tarea",
-        "aprendido, descubierto, aprendizaje, comprendido, mejorar",
-        "dependencia, abuso, automatizado, cerebro deja"
-    ]
-})
+# =============== CATEGORÍAS (editable y compatible) ===============
+st.sidebar.header("🧩 Diccionario de categorías")
 
-cat_df = st.sidebar.data_editor(
-    default_categories,
-    use_container_width=True,
-    num_rows="dynamic",
-    key="cat_editor",
-    help="Edita o agrega categorías y lista de palabras clave (separa con comas)."
-)
+st.sidebar.markdown("Edita las categorías y sus palabras clave (una por línea, separadas por dos puntos y comas):")
+default_text = """\
+Ética y responsabilidad: ética, responsable, honesto, crítico, citar
+Uso técnico o instrumental: herramienta, usar, aplicación, tecnología, ia, chatgpt
+Pensamiento crítico: analizar, reflexión, verificar, revisar, cuestionar, fuentes
+Uso inapropiado o plagio: copiar, pegar, plagio, sin revisar, hacer tarea
+Aprendizaje y descubrimiento: aprendido, descubierto, aprendizaje, comprendido, mejorar
+Dependencia o abuso: dependencia, abuso, automatizado, cerebro deja
+"""
 
-def build_category_dict(df: pd.DataFrame) -> Dict[str, List[str]]:
+text_input = st.sidebar.text_area("Diccionario de categorías", value=default_text, height=220)
+
+def parse_categorias(txt):
+    categorias = {}
+    for line in txt.strip().split("\n"):
+        if ":" in line:
+            cat, kws = line.split(":", 1)
+            categorias[cat.strip()] = [w.strip().lower() for w in kws.split(",") if w.strip()]
+    return categorias
+
+CATEGORIES = parse_categorias(text_input)
     cats = {}
     for _, row in df.iterrows():
         cat = str(row["Categoria"]).strip()
